@@ -18,8 +18,7 @@ SENDBLUE_API_BASE = "https://api.sendblue.co"
 [[d1_databases]]
 binding = "DB"
 database_name = "birthday-bot"
-# Replace with the id printed by `npx wrangler d1 create birthday-bot`.
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "bad5bce7-46f5-408f-87af-d3aedb4de73a"
 
 # Secrets (set with `npx wrangler secret put <NAME>`, never commit them):
 #   SENDBLUE_API_KEY_ID      — from the Sendblue dashboard

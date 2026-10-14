@@ -50,7 +50,8 @@ You need a Sendblue account and a Cloudflare account (both free to start).
 1. **Install:** `npm install`
 2. **Log in to Cloudflare:** `npx wrangler login`
 3. **Create the database:** `npx wrangler d1 create birthday-bot`, then paste
-   the printed `database_id` into `wrangler.toml`.
+   the printed `database_id` into `wrangler.toml` (it currently holds the id of
+   the existing production database).
 4. **Create the table:** `npm run db:migrate`
 5. **Add secrets** (each command prompts for the value):
    ```

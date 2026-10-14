@@ -1,5 +1,5 @@
 -- One row per (person who texts the bot, friend whose birthday they saved).
-CREATE TABLE birthdays (
+CREATE TABLE IF NOT EXISTS birthdays (
   phone          TEXT    NOT NULL, -- the user's number, E.164
   name           TEXT    NOT NULL, -- as typed, e.g. "Varun"
   name_key       TEXT    NOT NULL, -- lowercased name, for matching
@@ -10,4 +10,4 @@ CREATE TABLE birthdays (
   PRIMARY KEY (phone, name_key)
 );
 
-CREATE INDEX birthdays_by_date ON birthdays (month, day);
+CREATE INDEX IF NOT EXISTS birthdays_by_date ON birthdays (month, day);
