@@ -7,7 +7,9 @@ import { DatabaseSync } from "node:sqlite";
  */
 export function sqliteD1(): D1Database {
   const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(new URL("../migrations/0001_init.sql", import.meta.url), "utf8"));
+  for (const migration of ["0001_init.sql", "0002_users.sql"]) {
+    db.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
+  }
 
   const prepare = (sql: string) => {
     let params: unknown[] = [];
@@ -22,6 +24,9 @@ export function sqliteD1(): D1Database {
       },
       async all<T>() {
         return { success: true, results: db.prepare(sql).all(...(params as never[])) as T[] };
+      },
+      async first<T>() {
+        return (db.prepare(sql).get(...(params as never[])) as T | undefined) ?? null;
       },
     };
     return stmt;

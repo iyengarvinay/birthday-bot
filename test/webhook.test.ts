@@ -59,7 +59,7 @@ describe("webhook", () => {
     expect(sent[0]!.headers).toMatchObject({ "sb-api-key-id": "key-id", "sb-api-secret-key": "secret-key" });
     expect(sent[0]!.body).toEqual({
       number: "+15555550100",
-      content: "Saved! I'll text you on: Varun (May 6).",
+      content: "Saved! I'll text you on: Varun (May 6).\n\nBy the way, what's your name?",
       from_number: "+15555550000",
     });
   });

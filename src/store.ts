@@ -5,7 +5,17 @@ export interface Birthday {
   day: number;
 }
 
+export interface User {
+  phone: string;
+  /** What to call them; null until they've told the bot. */
+  name: string | null;
+}
+
 export interface Store {
+  getUser(phone: string): Promise<User | null>;
+  /** Records a first-time texter, with no name yet. */
+  addUser(phone: string): Promise<void>;
+  setUserName(phone: string, name: string): Promise<void>;
   /** Saves a birthday, replacing any earlier date saved for the same name. */
   upsert(b: Birthday): Promise<void>;
   list(phone: string): Promise<Birthday[]>;
@@ -20,6 +30,21 @@ const key = (name: string) => name.toLowerCase();
 
 export class D1Store implements Store {
   constructor(private db: D1Database) {}
+
+  async getUser(phone: string): Promise<User | null> {
+    return this.db.prepare(`SELECT phone, name FROM users WHERE phone = ?1`).bind(phone).first<User>();
+  }
+
+  async addUser(phone: string): Promise<void> {
+    await this.db.prepare(`INSERT OR IGNORE INTO users (phone) VALUES (?1)`).bind(phone).run();
+  }
+
+  async setUserName(phone: string, name: string): Promise<void> {
+    await this.db
+      .prepare(`INSERT INTO users (phone, name) VALUES (?1, ?2) ON CONFLICT (phone) DO UPDATE SET name = excluded.name`)
+      .bind(phone, name)
+      .run();
+  }
 
   async upsert(b: Birthday): Promise<void> {
     // A changed date resets last_sent_year so the new date still gets a reminder.

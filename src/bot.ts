@@ -1,5 +1,5 @@
 import { birthdayDatesFor, localTime } from "./dates";
-import { formatDate, parseMessage } from "./parse";
+import { formatDate, parseMessage, parseName, type Command } from "./parse";
 import type { Birthday, Store } from "./store";
 
 export const HELP =
@@ -9,18 +9,77 @@ export const HELP =
   "See all: list\n" +
   "Remove: delete Varun";
 
+export const INTRO =
+  "Hi! 🎂 I'm a birthday bot: text me your friends' birthdays and I'll text you on the day.\n\n" +
+  "First, what's your name?";
+
+export const ASK_NAME_AGAIN = "I didn't catch your name. What should I call you? (Or text help to see what I can do.)";
+
+const ASK_NAME_ALONGSIDE = "By the way, what's your name?";
+
+export const welcome = (name: string) =>
+  `Nice to meet you, ${name}! 🎂\n\n` +
+  "Text me a friend's name and birthday, like: Varun 5/6. Text help anytime to see everything I can do.";
+
+/** How often confirmations and reminders mention the person's name. */
+const NAME_ODDS = 1 / 3;
+
 const MAX_REPLY_LENGTH = 1500;
 
-/** Handles one incoming text and returns the reply to send back. */
-export async function handleText(store: Store, phone: string, body: string): Promise<string> {
+/**
+ * Handles one incoming text and returns the reply to send back. `random` picks
+ * when to use the person's name; tests pass a fixed value.
+ */
+export async function handleText(
+  store: Store,
+  phone: string,
+  body: string,
+  random: () => number = Math.random,
+): Promise<string> {
+  const existing = await store.getUser(phone);
+  if (!existing) await store.addUser(phone);
+  const name = existing?.name ?? null;
   const cmd = parseMessage(body);
 
+  if (cmd.kind === "rename") {
+    await store.setUserName(phone, cmd.name);
+    return name ? `Got it, I'll call you ${cmd.name}.` : welcome(cmd.name);
+  }
+  if (name) return respond(store, phone, cmd, name, random);
+
+  // We don't know their name yet. A text that isn't a command or a birthday may
+  // be their answer; birthdays and commands still work while we wait. On the
+  // very first text, only an explicit "I'm …" counts, since we haven't asked yet.
+  const nothingToDo = cmd.kind === "add" && cmd.entries.length === 0;
+  const smallTalk = cmd.kind === "thanks" || cmd.kind === "ok";
+  if (nothingToDo || smallTalk) {
+    const answer = parseName(body, { requireIntro: !existing });
+    if (answer) {
+      await store.setUserName(phone, answer);
+      return welcome(answer);
+    }
+  }
+  if (!existing && (nothingToDo || smallTalk || cmd.kind === "help")) return INTRO;
+  if (nothingToDo) return ASK_NAME_AGAIN;
+  return `${await respond(store, phone, cmd, null, random)}\n\n${ASK_NAME_ALONGSIDE}`;
+}
+
+async function respond(
+  store: Store,
+  phone: string,
+  cmd: Command,
+  name: string | null,
+  random: () => number,
+): Promise<string> {
   switch (cmd.kind) {
     case "help":
-      return HELP;
+      return name ? `Hi ${name}! ${HELP}` : HELP;
 
     case "thanks":
-      return "Anytime! 🎂";
+      return name ? `Anytime, ${name}! 🎂` : "Anytime! 🎂";
+
+    case "rename":
+      return `Got it, I'll call you ${cmd.name}.`;
 
     case "ok":
       return "👍";
@@ -42,7 +101,8 @@ export async function handleText(store: Store, phone: string, body: string): Pro
       const parts: string[] = [];
       if (cmd.entries.length > 0) {
         const saved = cmd.entries.map((e) => `${e.name} (${formatDate(e.month, e.day)})`).join(", ");
-        parts.push(`Saved! I'll text you on: ${saved}.`);
+        const greeting = name && random() < NAME_ODDS ? `Saved, ${name}!` : "Saved!";
+        parts.push(`${greeting} I'll text you on: ${saved}.`);
       }
       if (cmd.unreadable.length > 0) {
         const quoted = cmd.unreadable.map((u) => `"${u}"`).join(", ");
@@ -62,6 +122,7 @@ export async function dueReminders(
   now: Date,
   timeZone: string,
   sendHour: number,
+  random: () => number = Math.random,
 ): Promise<{ year: number; messages: Array<{ phone: string; text: string; birthdays: Birthday[] }> }> {
   const t = localTime(now, timeZone);
   // Runs before the send hour do nothing. Runs at or after it send whatever
@@ -72,11 +133,16 @@ export async function dueReminders(
   const byPhone = new Map<string, Birthday[]>();
   for (const b of due) byPhone.set(b.phone, [...(byPhone.get(b.phone) ?? []), b]);
 
-  const messages = [...byPhone].map(([phone, birthdays]) => ({
-    phone,
-    birthdays,
-    text: reminderText(birthdays.map((b) => b.name)),
-  }));
+  const messages = [];
+  for (const [phone, birthdays] of byPhone) {
+    const userName = (await store.getUser(phone))?.name;
+    const text = reminderText(birthdays.map((b) => b.name));
+    messages.push({
+      phone,
+      birthdays,
+      text: userName && random() < NAME_ODDS ? `Hey ${userName}! ${text}` : text,
+    });
+  }
   return { year: t.year, messages };
 }
 

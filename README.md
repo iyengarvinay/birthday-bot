@@ -21,10 +21,16 @@ Bot:  It's Varun's bday today 🎂
 | `Varun 5/7` (same name again) | Updates the date |
 | `list` | Shows everything you've saved |
 | `delete Varun` | Removes it |
+| `call me V`, `my name is V` | Changes what the bot calls you |
 | `help`, `hi`, `hey` | Shows these instructions |
 | `thanks`, 🙏 | "Anytime! 🎂" |
 | `ok`, `cool`, 👍 | "👍" |
 | Anything else | Says it couldn't read it and suggests texting `help` |
+
+On someone's first text the bot introduces itself and asks their name (a
+birthday sent as the first text is still saved). It greets them by name and,
+about a third of the time, uses it in confirmations and reminders
+("Hey Vinay! It's Varun's bday today 🎂").
 
 Each phone number has its own list. Two birthdays on the same day arrive as
 one text ("Birthdays today: Varun and Priya 🎂"). Feb 29 birthdays get their
@@ -55,7 +61,7 @@ You need a Sendblue account and a Cloudflare account (both free to start).
 3. **Create the database:** `npx wrangler d1 create birthday-bot`, then paste
    the printed `database_id` into `wrangler.toml` (it currently holds the id of
    the existing production database).
-4. **Create the table:** `npm run db:migrate`
+4. **Create the tables:** `npm run db:migrate`
 5. **Add secrets** (each command prompts for the value):
    ```
    npx wrangler secret put SENDBLUE_API_KEY_ID

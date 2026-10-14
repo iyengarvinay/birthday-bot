@@ -10,6 +10,7 @@ export type Command =
   | { kind: "ok" }
   | { kind: "list" }
   | { kind: "delete"; name: string }
+  | { kind: "rename"; name: string }
   | { kind: "add"; entries: Entry[]; unreadable: string[] };
 
 const MONTHS = [
@@ -52,6 +53,11 @@ export function parseMessage(body: string): Command {
   if (del?.[1]) {
     return { kind: "delete", name: cleanName(del[1]) };
   }
+  const rename = text.match(/^(?:call me|my name is|my name's|my name’s)\s+(.+)$/i);
+  const newName = rename?.[1] ? parseName(rename[1]) : null;
+  if (newName) {
+    return { kind: "rename", name: newName };
+  }
 
   const entries: Entry[] = [];
   const unreadable: string[] = [];
@@ -65,6 +71,41 @@ export function parseMessage(body: string): Command {
     else unreadable.push(part);
   }
   return { kind: "add", entries, unreadable };
+}
+
+const MAX_USER_NAME_LENGTH = 30;
+
+// Common words that show up in chatty replies but are never someone's name,
+// so "hey what's up" or "not now" isn't saved as a name.
+const NOT_NAMES = new Set([
+  "what", "whats", "up", "who", "why", "how", "when", "where", "is", "are", "was", "the", "a", "an",
+  "there", "here", "this", "that", "you", "your", "me", "my", "i", "it", "no", "not", "nope", "now",
+  "later", "idk", "huh", "wait", "test", "testing", "stop", "please", "sorry", "good", "morning",
+  "night", "fine", "and", "or", "but", "so", "to", "of", "for", "with", "do", "does", "can", "help",
+  "yo", "sup", "bot", "hello", "hi", "hey", "list", "ls", "show", "all", "delete", "remove",
+  "forget", "start", "commands",
+  // Small talk, except words that are also common first names.
+  ...SMALL_TALK_WORDS.filter((w) => w !== "will"),
+]);
+
+/**
+ * Reads a person's own name from a reply like "Vinay", "I'm Vinay" or
+ * "hi, my name is Vinay Iyengar". Returns null unless it looks like a name:
+ * one to three words of letters, with no digits.
+ */
+export function parseName(text: string, { requireIntro = false } = {}): string | null {
+  const greeting = /^(?:(?:hi|hey|hello)\b[\s,!.]*)?/i;
+  const intro = /^(?:i'?m|i’m|i am|im|my name is|my name's|my name’s|it'?s|it’s|this is|call me|name'?s|name is)\s+/i;
+  const afterGreeting = text.trim().replace(greeting, "");
+  if (requireIntro && !intro.test(afterGreeting)) return null;
+  const stripped = afterGreeting.replace(intro, "").replace(/[\s.!]+$/, "").trim();
+  if (!/^\p{L}[\p{L}'’-]*(?:\s\p{L}[\p{L}'’-]*){0,2}$/u.test(stripped)) return null;
+  if (stripped.length > MAX_USER_NAME_LENGTH) return null;
+  if (stripped.toLowerCase().split(/\s+/).some((w) => NOT_NAMES.has(w.replace(/['’]s$/, "")))) return null;
+  // Capitalize names typed in all lowercase ("vinay" → "Vinay"); keep any other casing.
+  return stripped === stripped.toLowerCase()
+    ? stripped.replace(/(^|[\s'’-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase())
+    : stripped;
 }
 
 function parseSmallTalk(lower: string): Command | null {
