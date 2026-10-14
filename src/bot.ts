@@ -1,4 +1,4 @@
-import { birthdayDatesFor, localTime } from "./dates";
+import { birthdayDatesFor, daysUntil, localTime } from "./dates";
 import { formatDate, parseMessage, parseName, type Command } from "./parse";
 import type { Birthday, Store } from "./store";
 
@@ -7,6 +7,7 @@ export const HELP =
   "Add one: Varun 5/6\n" +
   "Add several: one per line\n" +
   "See all: list\n" +
+  "Look one up: when is Varun's bday?\n" +
   "Remove: delete Varun";
 
 export const INTRO =
@@ -26,15 +27,19 @@ const NAME_ODDS = 1 / 3;
 
 const MAX_REPLY_LENGTH = 1500;
 
+type Day = { year: number; month: number; day: number };
+
 /**
  * Handles one incoming text and returns the reply to send back. `random` picks
- * when to use the person's name; tests pass a fixed value.
+ * when to use the person's name and `today` is the date in the bot's time zone;
+ * tests pass fixed values.
  */
 export async function handleText(
   store: Store,
   phone: string,
   body: string,
   random: () => number = Math.random,
+  today: Day = localTime(new Date(), "UTC"),
 ): Promise<string> {
   const existing = await store.getUser(phone);
   if (!existing) await store.addUser(phone);
@@ -45,7 +50,7 @@ export async function handleText(
     await store.setUserName(phone, cmd.name);
     return name ? `Got it, I'll call you ${cmd.name}.` : welcome(cmd.name);
   }
-  if (name) return respond(store, phone, cmd, name, random);
+  if (name) return respond(store, phone, cmd, name, random, today);
 
   // We don't know their name yet. A text that isn't a command or a birthday may
   // be their answer; birthdays and commands still work while we wait. On the
@@ -61,7 +66,7 @@ export async function handleText(
   }
   if (!existing && (nothingToDo || smallTalk || cmd.kind === "help")) return INTRO;
   if (nothingToDo) return ASK_NAME_AGAIN;
-  return `${await respond(store, phone, cmd, null, random)}\n\n${ASK_NAME_ALONGSIDE}`;
+  return `${await respond(store, phone, cmd, null, random, today)}\n\n${ASK_NAME_ALONGSIDE}`;
 }
 
 async function respond(
@@ -70,6 +75,7 @@ async function respond(
   cmd: Command,
   name: string | null,
   random: () => number,
+  today: Day,
 ): Promise<string> {
   switch (cmd.kind) {
     case "help":
@@ -89,6 +95,20 @@ async function respond(
       if (all.length === 0) return "No birthdays saved yet. Text a name and date, like: Varun 5/6";
       const lines = all.map((b) => `${b.name} – ${formatDate(b.month, b.day)}`);
       return truncate(`Your birthdays (${all.length}):\n${lines.join("\n")}`);
+    }
+
+    case "find": {
+      const all = await store.list(phone);
+      const query = cmd.name.toLowerCase();
+      // "varuns bday" means Varun, but James is James: try the name as typed first.
+      let matches = findMatches(all, query);
+      if (matches.length === 0 && query.length > 2 && query.endsWith("s")) {
+        matches = findMatches(all, query.slice(0, -1));
+      }
+      if (matches.length === 0) {
+        return `I don't have a birthday saved for ${cmd.name}. Text "list" to see them all, or add it like: ${cmd.name} 5/6`;
+      }
+      return truncate(matches.map((b) => describeBirthday(b, today)).join("\n"));
     }
 
     case "delete":
@@ -144,6 +164,24 @@ export async function dueReminders(
     });
   }
   return { year: t.year, messages };
+}
+
+/** Exact name matches if any; otherwise names with a word starting with the query. */
+function findMatches(all: Birthday[], query: string): Birthday[] {
+  const exact = all.filter((b) => b.name.toLowerCase() === query);
+  if (exact.length > 0) return exact;
+  return all.filter((b) => {
+    const name = b.name.toLowerCase();
+    return name.startsWith(query) || name.split(/\s+/).some((w) => w.startsWith(query));
+  });
+}
+
+function describeBirthday(b: Birthday, today: Day): string {
+  const date = formatDate(b.month, b.day);
+  const days = daysUntil(b.month, b.day, today);
+  if (days === 0) return `${b.name}'s birthday is today, ${date}! 🎂`;
+  if (days === 1) return `${b.name}'s birthday is tomorrow, ${date}.`;
+  return `${b.name}'s birthday is ${date}, in ${days} days.`;
 }
 
 export function reminderText(names: string[]): string {

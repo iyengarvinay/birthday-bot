@@ -1,4 +1,5 @@
 import { dueReminders, handleText } from "./bot";
+import { localTime } from "./dates";
 import { isAuthorizedWebhook, sendMessage, type InboundMessage, type SendblueEnv } from "./sendblue";
 import { D1Store } from "./store";
 
@@ -30,7 +31,8 @@ export default {
       return new Response("ignored");
     }
 
-    const reply = await handleText(new D1Store(env.DB), phone, msg.content);
+    const today = localTime(new Date(), env.TIME_ZONE);
+    const reply = await handleText(new D1Store(env.DB), phone, msg.content, Math.random, today);
     await sendMessage(env, phone, reply);
     return new Response("ok");
   },

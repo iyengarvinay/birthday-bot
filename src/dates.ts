@@ -32,3 +32,17 @@ export function birthdayDatesFor(year: number, month: number, day: number): Arra
   if (month === 2 && day === 28 && !isLeapYear(year)) dates.push([2, 29]);
   return dates;
 }
+
+/**
+ * Days from `today` until the next occurrence of a birthday (0 if it's today).
+ * Feb 29 birthdays fall on Feb 28 in non-leap years, matching the reminders.
+ */
+export function daysUntil(month: number, day: number, today: { year: number; month: number; day: number }): number {
+  const start = Date.UTC(today.year, today.month - 1, today.day);
+  for (const year of [today.year, today.year + 1]) {
+    const observedDay = month === 2 && day === 29 && !isLeapYear(year) ? 28 : day;
+    const date = Date.UTC(year, month - 1, observedDay);
+    if (date >= start) return Math.round((date - start) / 86_400_000);
+  }
+  throw new Error(`no upcoming date for ${month}/${day}`);
+}

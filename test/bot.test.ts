@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ASK_NAME_AGAIN, dueReminders, handleText, HELP, INTRO, reminderText, welcome } from "../src/bot";
-import { birthdayDatesFor, localTime } from "../src/dates";
+import { birthdayDatesFor, daysUntil, localTime } from "../src/dates";
 import { D1Store } from "../src/store";
 import { sqliteD1 } from "./sqlite-d1";
 
@@ -95,7 +95,7 @@ describe("dueReminders", () => {
     const early = await dueReminders(store, new Date("2027-05-06T12:00:00Z"), NY, 9, NEVER);
     expect(early.messages).toEqual([]);
 
-    const { messages } = await dueReminders(store, may6At9, NY, 9);
+    const { messages } = await dueReminders(store, may6At9, NY, 9, NEVER);
     expect(messages.map((m) => [m.phone, m.text])).toEqual([
       [ME, "Birthdays today: Priya and Varun 🎂"],
       [FRIEND, "It's Varun's bday today 🎂"],
@@ -106,7 +106,7 @@ describe("dueReminders", () => {
     const store = await newStore();
     await say(store, ME, "Varun 5/6");
 
-    const first = await dueReminders(store, may6At9, NY, 9);
+    const first = await dueReminders(store, may6At9, NY, 9, NEVER);
     for (const m of first.messages) for (const b of m.birthdays) await store.markSent(b, first.year);
 
     const laterSameDay = await dueReminders(store, new Date("2027-05-06T15:00:00Z"), NY, 9, NEVER);
@@ -119,7 +119,7 @@ describe("dueReminders", () => {
   it("retries on a later run if a send failed (left unmarked)", async () => {
     const store = await newStore();
     await say(store, ME, "Varun 5/6");
-    await dueReminders(store, may6At9, NY, 9); // pretend the send failed: not marked
+    await dueReminders(store, may6At9, NY, 9, NEVER); // pretend the send failed: not marked
     const retry = await dueReminders(store, new Date("2027-05-06T14:00:00Z"), NY, 9, NEVER);
     expect(retry.messages).toHaveLength(1);
   });
@@ -127,7 +127,7 @@ describe("dueReminders", () => {
   it("re-arms a birthday whose date is changed after its reminder went out", async () => {
     const store = await newStore();
     await say(store, ME, "Varun 5/6");
-    const sent = await dueReminders(store, may6At9, NY, 9);
+    const sent = await dueReminders(store, may6At9, NY, 9, NEVER);
     for (const m of sent.messages) for (const b of m.birthdays) await store.markSent(b, sent.year);
 
     await say(store, ME, "Varun 5/20");
@@ -257,5 +257,82 @@ describe("names", () => {
     await say(store, NEW, "Varun 5/6");
     const { messages } = await dueReminders(store, new Date("2027-05-06T13:00:00Z"), NY, 9, ALWAYS);
     expect(messages[0]!.text).toBe("It's Varun's bday today 🎂");
+  });
+});
+
+describe("looking up a birthday", () => {
+  // October 13, 2027
+  const today = { year: 2027, month: 10, day: 13 };
+  const ask = (store: D1Store, body: string) => handleText(store, ME, body, NEVER, today);
+
+  async function storeWithBirthdays() {
+    const store = await newStore();
+    await say(store, ME, "Varun 5/6\nPriya 10/13\nSam 10/14\nVarun Mehta 1/2");
+    return store;
+  }
+
+  it.each([
+    "When is Varun's bday?",
+    "when's varun's birthday",
+    "when is varun",
+    "What's Varun's birthday?",
+    "what is varuns bday",
+    "Varun's bday?",
+    "varun birthday",
+    "search Varun",
+    "find varun",
+  ])("answers %s", async (q) => {
+    expect(await ask(await storeWithBirthdays(), q)).toBe("Varun's birthday is May 6, in 206 days.");
+  });
+
+  it("says today and tomorrow", async () => {
+    const store = await storeWithBirthdays();
+    expect(await ask(store, "when is Priya's bday")).toBe("Priya's birthday is today, October 13! 🎂");
+    expect(await ask(store, "when is Sam's bday")).toBe("Sam's birthday is tomorrow, October 14.");
+  });
+
+  it("lists every partial match when there's no exact one", async () => {
+    const store = await newStore();
+    await say(store, ME, "Varun Mehta 1/2\nVarun S 3/4");
+    expect(await ask(store, "when is varun's bday")).toBe(
+      "Varun Mehta's birthday is January 2, in 81 days.\nVarun S's birthday is March 4, in 143 days.",
+    );
+  });
+
+  it("keeps a name that really ends in s", async () => {
+    const store = await newStore();
+    await say(store, ME, "James 7/4");
+    expect(await ask(store, "when is james bday")).toBe("James's birthday is July 4, in 265 days.");
+  });
+
+  it("says when it has no match", async () => {
+    expect(await ask(await storeWithBirthdays(), "when is Zoe's bday?")).toBe(
+      `I don't have a birthday saved for Zoe. Text "list" to see them all, or add it like: Zoe 5/6`,
+    );
+  });
+
+  it("only searches the asker's own list", async () => {
+    const store = await storeWithBirthdays();
+    expect(await handleText(store, FRIEND, "when is varun's bday", NEVER, today)).toMatch(/^I don't have a birthday saved for varun/);
+  });
+
+  it("doesn't mistake small talk or birthdays for a lookup", async () => {
+    const store = await newStore();
+    expect(await ask(store, "what's up")).toMatch(/^I couldn't read/);
+    expect(await ask(store, "happy bday!")).toMatch(/^I couldn't read/);
+    expect(await ask(store, "Varun's birthday 5/6")).toBe("Saved! I'll text you on: Varun (May 6).");
+  });
+});
+
+describe("daysUntil", () => {
+  it("counts to this year's date, or next year's once it has passed", () => {
+    expect(daysUntil(10, 13, { year: 2027, month: 10, day: 13 })).toBe(0);
+    expect(daysUntil(12, 31, { year: 2027, month: 12, day: 30 })).toBe(1);
+    expect(daysUntil(1, 1, { year: 2027, month: 12, day: 31 })).toBe(1);
+    expect(daysUntil(10, 12, { year: 2027, month: 10, day: 13 })).toBe(365);
+  });
+  it("counts Feb 29 birthdays to Feb 28 in non-leap years", () => {
+    expect(daysUntil(2, 29, { year: 2027, month: 2, day: 28 })).toBe(0);
+    expect(daysUntil(2, 29, { year: 2028, month: 2, day: 28 })).toBe(1);
   });
 });

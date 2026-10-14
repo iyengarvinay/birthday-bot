@@ -20,6 +20,7 @@ Bot:  It's Varun's bday today 🎂
 | Several lines, or `Varun 5/6, Priya 7/12` | Saves them all |
 | `Varun 5/7` (same name again) | Updates the date |
 | `list` | Shows everything you've saved |
+| `When is Varun's bday?`, `Varun's birthday?`, `search Varun` | Tells you the date and how many days away it is |
 | `delete Varun` | Removes it |
 | `call me V`, `my name is V` | Changes what the bot calls you |
 | `help`, `hi`, `hey` | Shows these instructions |

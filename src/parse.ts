@@ -11,6 +11,7 @@ export type Command =
   | { kind: "list" }
   | { kind: "delete"; name: string }
   | { kind: "rename"; name: string }
+  | { kind: "find"; name: string }
   | { kind: "add"; entries: Entry[]; unreadable: string[] };
 
 const MONTHS = [
@@ -57,6 +58,11 @@ export function parseMessage(body: string): Command {
   const newName = rename?.[1] ? parseName(rename[1]) : null;
   if (newName) {
     return { kind: "rename", name: newName };
+  }
+
+  const found = parseFind(text);
+  if (found) {
+    return { kind: "find", name: found };
   }
 
   const entries: Entry[] = [];
@@ -106,6 +112,28 @@ export function parseName(text: string, { requireIntro = false } = {}): string |
   return stripped === stripped.toLowerCase()
     ? stripped.replace(/(^|[\s'’-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase())
     : stripped;
+}
+
+/**
+ * Reads a birthday lookup: "When is Varun's bday?", "what's varun's birthday",
+ * "Varun's bday?", "search Varun". "What…" needs the word birthday/bday, so
+ * "what's up" isn't a lookup.
+ */
+function parseFind(text: string): string | null {
+  const t = text.replace(/[?!.\s]+$/, "");
+  const bday = String.raw`(?:birthday|bday|b-day|bd)`;
+  const patterns = [
+    new RegExp(String.raw`^(?:when(?:['’]s|\s+is|\s+was)?|search(?:\s+for)?|find|look\s*up)\s+(.+?)(?:\s+${bday})?$`, "i"),
+    new RegExp(String.raw`^what(?:['’]s|\s+is)\s+(.+?)\s+${bday}$`, "i"),
+    new RegExp(String.raw`^(.+?)\s+${bday}$`, "i"),
+  ];
+  for (const re of patterns) {
+    const m = t.match(re);
+    if (!m?.[1]) continue;
+    const name = m[1].replace(/['’]s?$/, "").replace(/^the\s+/i, "").trim();
+    if (name && !/\d/.test(name) && !/^(?:happy|my|your)$/i.test(name)) return name;
+  }
+  return null;
 }
 
 function parseSmallTalk(lower: string): Command | null {
