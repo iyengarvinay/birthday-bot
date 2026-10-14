@@ -1,0 +1,28 @@
+name = "birthday-bot"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# Cron times are UTC. 9am in New York is 13:00 UTC in summer and 14:00 UTC in
+# winter. A run before SEND_HOUR in TIME_ZONE does nothing; a run at or after it
+# sends anything not yet sent today. Sent reminders are recorded, so nothing goes
+# out twice, and the 15:00 UTC run retries any failures year-round.
+[triggers]
+crons = ["0 13 * * *", "0 14 * * *", "0 15 * * *"]
+
+[vars]
+TIME_ZONE = "America/New_York"
+SEND_HOUR = "9"
+# Sendblue's docs show both api.sendblue.co and api.sendblue.com.
+SENDBLUE_API_BASE = "https://api.sendblue.co"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "birthday-bot"
+# Replace with the id printed by `npx wrangler d1 create birthday-bot`.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Secrets (set with `npx wrangler secret put <NAME>`, never commit them):
+#   SENDBLUE_API_KEY_ID      — from the Sendblue dashboard
+#   SENDBLUE_API_SECRET_KEY  — from the Sendblue dashboard
+#   SENDBLUE_FROM_NUMBER     — your Sendblue number, e.g. +12125551234
+#   WEBHOOK_SECRET           — any long random string you make up
