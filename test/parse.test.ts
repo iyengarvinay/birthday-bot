@@ -40,6 +40,33 @@ describe("parseMessage", () => {
     expect(parseMessage("Remove  Mary Jane")).toEqual({ kind: "delete", name: "Mary Jane" });
   });
 
+  it.each([
+    "thanks", "Thanks!", "thank you", "Thank you so much!!", "ty", "thx", "ok thanks", "🙏", "❤️", "thanks 🙏",
+  ])("treats %s as thanks", (text) => {
+    expect(parseMessage(text)).toEqual({ kind: "thanks" });
+  });
+
+  it.each(["ok", "OK.", "okay", "k", "cool", "got it", "sounds good!", "lol", "👍", "😂😂", "yep", "ok 👍", "👍🏽"])(
+    "treats %s as an acknowledgment",
+    (text) => expect(parseMessage(text)).toEqual({ kind: "ok" }),
+  );
+
+  it("greets with help for hey", () => {
+    expect(parseMessage("Hey")).toEqual({ kind: "help" });
+  });
+
+  it("still saves birthdays whose name is a small-talk word", () => {
+    expect(parseMessage("Sure 5/6")).toEqual({
+      kind: "add",
+      entries: [{ name: "Sure", month: 5, day: 6 }],
+      unreadable: [],
+    });
+  });
+
+  it("does not treat a mix of small talk and other words as small talk", () => {
+    expect(parseMessage("ok what now")).toEqual({ kind: "add", entries: [], unreadable: ["ok what now"] });
+  });
+
   it("reads several birthdays separated by newlines, commas or semicolons", () => {
     expect(parseMessage("Varun 5/6\nPriya 7/12, Sam 1/2; Ana 3/4")).toEqual({
       kind: "add",

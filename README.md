@@ -21,7 +21,10 @@ Bot:  It's Varun's bday today 🎂
 | `Varun 5/7` (same name again) | Updates the date |
 | `list` | Shows everything you've saved |
 | `delete Varun` | Removes it |
-| `help` | Shows these instructions |
+| `help`, `hi`, `hey` | Shows these instructions |
+| `thanks`, 🙏 | "Anytime! 🎂" |
+| `ok`, `cool`, 👍 | "👍" |
+| Anything else | Says it couldn't read it and suggests texting `help` |
 
 Each phone number has its own list. Two birthdays on the same day arrive as
 one text ("Birthdays today: Varun and Priya 🎂"). Feb 29 birthdays get their

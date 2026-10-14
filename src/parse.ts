@@ -6,6 +6,8 @@ export interface Entry {
 
 export type Command =
   | { kind: "help" }
+  | { kind: "thanks" }
+  | { kind: "ok" }
   | { kind: "list" }
   | { kind: "delete"; name: string }
   | { kind: "add"; entries: Entry[]; unreadable: string[] };
@@ -20,13 +22,29 @@ const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 const MAX_NAME_LENGTH = 50;
 
+const GREETINGS = ["help", "hi", "hey", "hello", "start", "?", "commands"];
+
+// Small talk is recognized only when every word is on these lists, so a
+// birthday like "Sure 5/6" is never mistaken for it.
+const THANKS_WORDS = ["thanks", "thank", "thx", "ty", "tysm", "tks"];
+const SMALL_TALK_WORDS = [
+  ...THANKS_WORDS, "you", "u", "so", "much", "a", "lot", "very",
+  "ok", "okay", "k", "kk", "cool", "nice", "great", "awesome", "perfect", "amazing",
+  "sounds", "good", "got", "it", "lol", "haha", "yes", "yep", "yeah", "sure",
+  "np", "alright", "will", "do", "love", "this",
+];
+const THANKS_EMOJI = /[🙏❤♥🥰😍💙💚💜🧡💛🤍]/u;
+const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\ufe0f]/gu;
+
 export function parseMessage(body: string): Command {
   const text = body.trim();
   const lower = text.toLowerCase();
 
-  if (lower === "" || ["help", "hi", "hello", "start", "?", "commands"].includes(lower)) {
+  if (lower === "" || GREETINGS.includes(lower)) {
     return { kind: "help" };
   }
+  const smallTalk = parseSmallTalk(lower);
+  if (smallTalk) return smallTalk;
   if (["list", "ls", "show", "all"].includes(lower)) {
     return { kind: "list" };
   }
@@ -47,6 +65,13 @@ export function parseMessage(body: string): Command {
     else unreadable.push(part);
   }
   return { kind: "add", entries, unreadable };
+}
+
+function parseSmallTalk(lower: string): Command | null {
+  const words = lower.replace(EMOJI, " ").replace(/[.,!?~'’]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (!words.every((w) => SMALL_TALK_WORDS.includes(w))) return null;
+  const thanks = THANKS_EMOJI.test(lower) || words.some((w) => THANKS_WORDS.includes(w));
+  return { kind: thanks ? "thanks" : "ok" };
 }
 
 export function parseEntry(text: string): Entry | null {

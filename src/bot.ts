@@ -19,6 +19,12 @@ export async function handleText(store: Store, phone: string, body: string): Pro
     case "help":
       return HELP;
 
+    case "thanks":
+      return "Anytime! 🎂";
+
+    case "ok":
+      return "👍";
+
     case "list": {
       const all = await store.list(phone);
       if (all.length === 0) return "No birthdays saved yet. Text a name and date, like: Varun 5/6";
@@ -40,7 +46,10 @@ export async function handleText(store: Store, phone: string, body: string): Pro
       }
       if (cmd.unreadable.length > 0) {
         const quoted = cmd.unreadable.map((u) => `"${u}"`).join(", ");
-        parts.push(`I couldn't read ${quoted}. Try a name and date, like: Varun 5/6`);
+        parts.push(
+          `I couldn't read ${quoted}. To save a birthday, text a name and date, like: Varun 5/6\n\n` +
+            `Text help to see everything I can do.`,
+        );
       }
       return truncate(parts.join("\n\n"));
     }

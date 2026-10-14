@@ -41,10 +41,18 @@ describe("handleText", () => {
     expect(await handleText(store, ME, "delete Varun")).toMatch(/^I don't have a birthday saved for Varun/);
   });
 
-  it("explains what it couldn't read", async () => {
-    expect(await handleText(newStore(), ME, "hello there")).toBe(
-      `I couldn't read "hello there". Try a name and date, like: Varun 5/6`,
+  it("explains what it couldn't read and points to help", async () => {
+    expect(await handleText(newStore(), ME, "what is this")).toBe(
+      `I couldn't read "what is this". To save a birthday, text a name and date, like: Varun 5/6\n\n` +
+        `Text help to see everything I can do.`,
     );
+  });
+
+  it("answers thanks and acknowledgments without saving anything", async () => {
+    const store = newStore();
+    expect(await handleText(store, ME, "Thanks!")).toBe("Anytime! 🎂");
+    expect(await handleText(store, ME, "ok")).toBe("👍");
+    expect(await handleText(store, ME, "list")).toMatch(/^No birthdays saved yet/);
   });
 
   it("answers help", async () => {
